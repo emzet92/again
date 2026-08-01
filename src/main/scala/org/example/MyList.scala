@@ -19,6 +19,8 @@ abstract class MyList[+A] {
   def flatMap[B](myTransformer: MyTransformer[A, MyList[B]]): MyList[B]
 
   def filter(predicate: MyPredicate[A]): MyList[A]
+
+  def ++[B >: A](list: MyList[B]): MyList[B]
 }
 
 object Empty extends MyList[Nothing] {
@@ -38,6 +40,8 @@ object Empty extends MyList[Nothing] {
   override def flatMap[B](myTransformer: MyTransformer[Nothing, MyList[B]]): MyList[B] = Empty
 
   override def filter(predicate: MyPredicate[Nothing]): MyList[Nothing] = Empty
+
+  override def ++[B >: Nothing](list: MyList[B]): MyList[B] = list
 }
 
 class Cons[+A](h: A, t: MyList[A]) extends MyList[A] {
@@ -57,12 +61,118 @@ class Cons[+A](h: A, t: MyList[A]) extends MyList[A] {
 
   override def map[B](transformer: MyTransformer[A, B]): MyList[B] = new Cons(transformer.transform(h), t.map(transformer))
 
-  override def flatMap[B](myTransformer: MyTransformer[A, MyList[B]]): MyList[B] = ??? // TODO: implement concat first
+
+  /*
+   * Przykład działania:
+   *
+   * Lista:
+   * Cons(1, Cons(2, Cons(3, Empty)))
+   *
+   * Transformer:
+   * 1 => Cons(1, Cons(1, Empty))
+   * 2 => Cons(2, Cons(2, Empty))
+   * 3 => Cons(3, Cons(3, Empty))
+   *
+   * Wywołanie:
+   *
+   * Cons(1, Cons(2, Cons(3, Empty))).flatMap(transformer)
+   *
+   * = transformer.transform(1) ++
+   *   Cons(2, Cons(3, Empty)).flatMap(transformer)
+   *
+   * = Cons(1, Cons(1, Empty)) ++
+   *   (
+   *     transformer.transform(2) ++
+   *     Cons(3, Empty).flatMap(transformer)
+   *   )
+   *
+   * = Cons(1, Cons(1, Empty)) ++
+   *   (
+   *     Cons(2, Cons(2, Empty)) ++
+   *     (
+   *       transformer.transform(3) ++
+   *       Empty.flatMap(transformer)
+   *     )
+   *   )
+   *
+   * = Cons(1, Cons(1, Empty)) ++
+   *   (
+   *     Cons(2, Cons(2, Empty)) ++
+   *     (
+   *       Cons(3, Cons(3, Empty)) ++
+   *       Empty
+   *     )
+   *   )
+   *
+   * Dla Empty:
+   *
+   * Empty.flatMap(transformer) = Empty
+   *
+   * Po zwinięciu rekurencji:
+   *
+   * Cons(
+   *   1,
+   *   Cons(
+   *     1,
+   *     Cons(
+   *       2,
+   *       Cons(
+   *         2,
+   *         Cons(
+   *           3,
+   *           Cons(3, Empty)
+   *         )
+   *       )
+   *     )
+   *   )
+   * )
+   *
+   * Wynik:
+   *
+   * [1, 1, 2, 2, 3, 3]
+   *
+   * Metoda wykonuje transformację dla elementu head.
+   * Transformer zwraca nową listę, która jest następnie łączona
+   * operatorem ++ z wynikiem flatMap dla pozostałej części listy.
+   *
+   * Rekurencja kończy się po dotarciu do Empty.
+   */
+  override def flatMap[B](
+                           myTransformer: MyTransformer[A, MyList[B]]
+                         ): MyList[B] =
+    myTransformer.transform(head) ++ t.flatMap(myTransformer)
+
 
   override def filter(predicate: MyPredicate[A]): MyList[A] = {
-    if(predicate.test(h)) new Cons(h, t.filter(predicate))
+    if (predicate.test(h)) new Cons(h, t.filter(predicate))
     else t.filter(predicate)
   }
+
+
+  /*
+   * Przykład działania:
+   *
+   * Cons(1, Cons(2, Cons(3, Empty))) ++ Cons(4, Cons(5, Empty))
+   *
+   * = Cons(1, Cons(2, Cons(3, Empty)) ++ Cons(4, Cons(5, Empty)))
+   * = Cons(1, Cons(2, Cons(3, Empty) ++ Cons(4, Cons(5, Empty))))
+   * = Cons(1, Cons(2, Cons(3, Empty ++ Cons(4, Cons(5, Empty)))))
+   *
+   * Dla Empty:
+   * Empty ++ list = list
+   *
+   * Po zwinięciu rekurencji:
+   * Cons(1, Cons(2, Cons(3, Cons(4, Cons(5, Empty)))))
+   *
+   * Metoda przechodzi przez wszystkie elementy pierwszej listy,
+   * odtwarza je w nowej liście, a na jej końcu dołącza drugą listę.
+   *
+   * Złożoność czasowa: O(n),
+   * gdzie n oznacza długość pierwszej listy.
+   */
+  override def ++[B >: A](list: MyList[B]): MyList[B] =
+    new Cons(h, t ++ list)
+
 }
 
 trait MyPredicate[-T] {
@@ -77,5 +187,17 @@ trait MyTransformer[-A, B] {
 @main
 def main(args: String*): Unit = {
   val list = Empty.add(1).add(2).add(3).filter((cond: Int) => cond > 2)
+  val list2 = Empty.add(22).add(33).add(44)
+
   println(list)
+  println(list ++ list2)
+  println(list.flatMap((input: Int) => list ++ list2.map(_ * 2)))
+
+  // alternative using for comprehension
+  println(
+    for {
+      input <- list
+      element <- list ++ list2.map(n => n * 2)
+    } yield element
+  )
 }
