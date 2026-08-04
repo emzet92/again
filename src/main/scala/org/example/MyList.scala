@@ -14,11 +14,11 @@ abstract class MyList[+A] {
 
   override def toString: String = s"[$printElements]"
 
-  def map[B](transformer: MyTransformer[A, B]): MyList[B]
+  def map[B](transformer: A => B): MyList[B]
 
-  def flatMap[B](myTransformer: MyTransformer[A, MyList[B]]): MyList[B]
+  def flatMap[B](myTransformer: A => MyList[B]): MyList[B]
 
-  def filter(predicate: MyPredicate[A]): MyList[A]
+  def filter(predicate: A => Boolean): MyList[A]
 
   def ++[B >: A](list: MyList[B]): MyList[B]
 }
@@ -35,11 +35,11 @@ case object Empty extends MyList[Nothing] {
 
   override def printElements: String = ""
 
-  override def map[B](transformer: MyTransformer[Nothing, B]): MyList[Nothing] = Empty
+  override def map[B](transformer: Nothing => B): MyList[Nothing] = Empty
 
-  override def flatMap[B](myTransformer: MyTransformer[Nothing, MyList[B]]): MyList[B] = Empty
+  override def flatMap[B](myTransformer: Nothing => MyList[B]): MyList[B] = Empty
 
-  override def filter(predicate: MyPredicate[Nothing]): MyList[Nothing] = Empty
+  override def filter(predicate: Nothing => Boolean): MyList[Nothing] = Empty
 
   override def ++[B >: Nothing](list: MyList[B]): MyList[B] = list
 }
@@ -59,7 +59,7 @@ case class Cons[+A](h: A, t: MyList[A]) extends MyList[A] {
     else s"$h ${t.printElements}"
   }
 
-  override def map[B](transformer: MyTransformer[A, B]): MyList[B] = new Cons(transformer.transform(h), t.map(transformer))
+  override def map[B](transformer: A=>B): MyList[B] = new Cons(transformer(h), t.map(transformer))
 
 
   /*
@@ -138,13 +138,13 @@ case class Cons[+A](h: A, t: MyList[A]) extends MyList[A] {
    * Rekurencja kończy się po dotarciu do Empty.
    */
   override def flatMap[B](
-                           myTransformer: MyTransformer[A, MyList[B]]
+                           myTransformer: A => MyList[B]
                          ): MyList[B] =
-    myTransformer.transform(head) ++ t.flatMap(myTransformer)
+    myTransformer(head) ++ t.flatMap(myTransformer)
 
 
-  override def filter(predicate: MyPredicate[A]): MyList[A] = {
-    if (predicate.test(h)) new Cons(h, t.filter(predicate))
+  override def filter(predicate: A => Boolean): MyList[A] = {
+    if (predicate(h)) Cons(h, t.filter(predicate))
     else t.filter(predicate)
   }
 
